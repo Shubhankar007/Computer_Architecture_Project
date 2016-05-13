@@ -1,0 +1,6 @@
+
+cp runscripts/RUNequake spec2000args/equake
+cd spec2000args/equake 
+./RUNequake ../../simplesim-3.0/sim-outorder ../../spec2000binaries/equake00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output1.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2
+
+./RUNequake ../../simplesim-3.0/sim-outorder ../../spec2000binaries/equake00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output2.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2 -cache:dl1 dl1:8:64:8:d -cache:il2 dl2 -cache:dl2 ul2:256:128:2:l

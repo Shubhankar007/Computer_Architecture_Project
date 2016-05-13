@@ -310,7 +310,11 @@ cache_create(char *name,		/* name of the cache */
   cp->assoc = assoc;
   cp->policy = policy;
   cp->hit_latency = hit_latency;
-
+  //***********************************************************************************************************
+  cp->throttle1=0;  //DRRIP-Initialize throttle parameter for BRRIP dedicated sets
+  cp->throttle2=0;  //DRRIP-Initialize throttle parameter for BRRIP follower set
+  cp->PSEL=511;     //Policy selection counter
+  cp->RRPV_bits=2;
   /* miss/replacement functions */
   cp->blk_access_fn = blk_access_fn;
 
@@ -351,7 +355,7 @@ cache_create(char *name,		/* name of the cache */
     fatal("out of virtual memory");
 
   /* slice up the data blocks */
-  for (bindex=0,i=0; i<nsets; i++)
+  for (bindex=0,i=0; i<nsets; i++) //DRRIP-Traverses through all the sets in cache
     {
       cp->sets[i].way_head = NULL;
       cp->sets[i].way_tail = NULL;
@@ -371,7 +375,7 @@ cache_create(char *name,		/* name of the cache */
       
       /* link the data blocks into ordered way chain and hash table bucket
          chains, if hash table exists */
-      for (j=0; j<assoc; j++)
+      for (j=0; j<assoc; j++) //DRRIP-Traverses through all the ways of set
 	{
 	  /* locate next cache block */
 	  blk = CACHE_BINDEX(cp, cp->data, bindex);
@@ -381,6 +385,8 @@ cache_create(char *name,		/* name of the cache */
 	  blk->status = 0;
 	  blk->tag = 0;
 	  blk->ready = 0;
+	  //****************************************************************************************************************
+	  blk->RRPV=(1<<(cp->RRPV_bits))-1;	//DRRIP-Initialization of RRPV for each block
 	  blk->user_data = (usize != 0
 			    ? (byte_t *)calloc(usize, sizeof(byte_t)) : NULL);
 
@@ -409,6 +415,7 @@ cache_char2policy(char c)		/* replacement policy as a char */
   case 'l': return LRU;
   case 'r': return Random;
   case 'f': return FIFO;
+  case 'd': return DRRIP;		//For configuration file mapping ************************************************
   default: fatal("bogus replacement policy, `%c'", c);
   }
 }
@@ -512,6 +519,8 @@ cache_access(struct cache_t *cp,	/* cache to access */
   md_addr_t bofs = CACHE_BLK(cp, addr);
   struct cache_blk_t *blk, *repl;
   int lat = 0;
+  int victim;	//DRRIP-Used in while loop to check if we found the victim block or not ******************************
+  int RRPV_counter;
 
   /* default replacement address */
   if (repl_addr)
@@ -533,7 +542,7 @@ cache_access(struct cache_t *cp,	/* cache to access */
   if (CACHE_TAGSET(cp, addr) == cp->last_tagset)
     {
       /* hit in the same block */
-      blk = cp->last_blk;
+      blk = cp->last_blk; //DRRIP-Since the block is accessed previously, so in RRIP-HP it is already 0 ******************
       goto cache_fast_hit;
     }
     
@@ -557,8 +566,12 @@ cache_access(struct cache_t *cp,	/* cache to access */
 	   blk;
 	   blk=blk->way_next)
 	{
-	  if (blk->tag == tag && (blk->status & CACHE_BLK_VALID))
-	    goto cache_hit;
+	  if (blk->tag == tag && (blk->status & CACHE_BLK_VALID))//****************************************************
+		{
+			blk->RRPV=0;	//DRRIP-Implementing Re-Reference, when hit then make RRPV=0
+	    		goto cache_hit;
+		}
+	    //goto cache_hit;
 	}
     }
 
@@ -575,6 +588,99 @@ cache_access(struct cache_t *cp,	/* cache to access */
     repl = cp->sets[set].way_tail;
     update_way_list(&cp->sets[set], repl, Head);
     break;
+  case DRRIP:
+	RRPV_counter=1<<(cp->RRPV_bits);
+
+	victim=0;
+	while(victim==0)	//DRRIP-We keep on looking till the time we don't find the victim block
+	{
+		//DRRIP-Traversing code copied from hit policy line 559
+      		for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)	//DRRIP-Resolves the tie breaker automatically
+		{       
+
+			if(blk->RRPV==RRPV_counter-1)                 //DRRIP-To check if we have a block on set with RRPV=3
+			{
+				victim=1;
+				repl=blk;		//DRRIP-Address of the victim block assogned to block to be inserted
+				break;
+			}
+		}
+		if(victim==0)	//DRRIP-Incase unable to find blk with RRPV=3
+		{
+			 for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)  //DRRIP-Traverse the blocks and increment RRPV by 1
+				blk->RRPV++;
+                }
+		if(victim==1)	//DRRIP-Found Block to replace. Update the parameters of inserted block
+			break;
+	}
+  //Found Block to replace
+	//populate the elements of repl block with new data,tag,RRPV value.
+
+      
+	//DRRIP-Update the RRPV value of the new inserted block for RRIP
+  	if(set==0 || set%1024==0 || set%33==0)
+	{
+
+		repl->RRPV=RRPV_counter-2;
+
+		if(cp->PSEL<1023)
+			cp->PSEL++;
+
+		break;
+	}
+  	else if(set%31==0)
+	{
+		if(cp->throttle1==31)
+		{
+
+			repl->RRPV=RRPV_counter-2;
+
+			cp->throttle1=0;
+		}
+		else
+		{
+
+			repl->RRPV=RRPV_counter-1;
+
+			cp->throttle1++;
+		}
+		if(cp->PSEL>0)
+			cp->PSEL--;
+
+		break;
+	}
+  	else
+	{
+
+		if(cp->PSEL<511)
+		{
+
+			repl->RRPV=RRPV_counter-2;
+
+			break;
+		
+		}
+		else
+		{
+			if(cp->throttle2==31)
+			{
+
+				repl->RRPV=RRPV_counter-2;
+
+				cp->throttle2=0;
+			}
+			else
+			{
+
+				repl->RRPV=RRPV_counter-1;
+
+				cp->throttle2++;
+			}
+
+			break;
+		}
+	}		//End of DRRIP
+  
   case Random:
     {
       int bindex = myrand() & (cp->assoc - 1);
