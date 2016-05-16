@@ -4,3 +4,13 @@ cd spec2000args/equake
 ./RUNequake ../../simplesim-3.0/sim-outorder ../../spec2000binaries/equake00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output1.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2
 
 ./RUNequake ../../simplesim-3.0/sim-outorder ../../spec2000binaries/equake00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output2.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2 -cache:dl1 dl1:8:64:8:d -cache:il2 dl2 -cache:dl2 ul2:256:128:2:l
+
+
+http://tex.stackexchange.com/questions/246988/how-to-create-double-spacing-single-column-in-ieeetrans-template
+http://www.eee.metu.edu.tr/~ccandan/other/latex_intro.htm
+
+
+./RUNammp ../../simplesim-3.0/sim-outorder ../../spec2000binaries/ammp00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output_DRRIP1.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2 -cache:dl1 dl1:128:64:4:l -cache:il2 dl2 -cache:dl2 ul2:512:256:8:d
+
+./RUNammp ../../simplesim-3.0/sim-outorder ../../spec2000binaries/ammp00.peak.ev6 -max:inst 50000000 -fastfwd 20000000 -redir:sim output_LRU1.txt -bpred bimod -bpred:bimod 256 -bpred:ras 8 -bpred:btb 64 2 -cache:dl1 dl1:128:64:4:l -cache:il2 dl2 -cache:dl2 ul2:512:256:8:l
+

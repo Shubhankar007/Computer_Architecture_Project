@@ -588,99 +588,78 @@ cache_access(struct cache_t *cp,	/* cache to access */
     repl = cp->sets[set].way_tail;
     update_way_list(&cp->sets[set], repl, Head);
     break;
+  //DRRIP Policy main body
   case DRRIP:
 	RRPV_counter=1<<(cp->RRPV_bits);
-
 	victim=0;
-	while(victim==0)	//DRRIP-We keep on looking till the time we don't find the victim block
+	while(victim==0)	//Iterate until victim =1 i.e. victim found
 	{
-		//DRRIP-Traversing code copied from hit policy line 559
-      		for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)	//DRRIP-Resolves the tie breaker automatically
+		//DRRIP-Traversing code
+    for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)	//DRRIP-Resolves the tie breaker automatically
 		{       
-
-			if(blk->RRPV==RRPV_counter-1)                 //DRRIP-To check if we have a block on set with RRPV=3
+			if(blk->RRPV==RRPV_counter-1) //check if a block on set has RRPV = 3 (2^M-1), M =2
 			{
-				victim=1;
-				repl=blk;		//DRRIP-Address of the victim block assogned to block to be inserted
+				victim=1; //Set victim blk flag to 1
+				repl=blk;	//Address of the victim block assigned to block to be inserted
 				break;
 			}
 		}
-		if(victim==0)	//DRRIP-Incase unable to find blk with RRPV=3
+		if(victim==0)	//If there is no blk with RRPV=3
 		{
-			 for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)  //DRRIP-Traverse the blocks and increment RRPV by 1
-				blk->RRPV++;
-                }
-		if(victim==1)	//DRRIP-Found Block to replace. Update the parameters of inserted block
+			 for (blk=cp->sets[set].way_head;blk;blk=blk->way_next)  //Increment RRPV of all blk by 1
+			  blk->RRPV++;
+    }
+		if(victim==1)	//victim blk to replace. Go to next step and update the parameters of inserted block
 			break;
 	}
-  //Found Block to replace
 	//populate the elements of repl block with new data,tag,RRPV value.
-
-      
-	//DRRIP-Update the RRPV value of the new inserted block for RRIP
-  	if(set==0 || set%1024==0 || set%33==0)
+	//Update the RRPV value of the new inserted block for RRIP
+  if(set==0 || set%1024==0 || set%33==0) //If set is 0 or part of every 33rd set in the 1024 set counter, i.e. part of LRU sets
 	{
-
 		repl->RRPV=RRPV_counter-2;
-
 		if(cp->PSEL<1023)
 			cp->PSEL++;
-
 		break;
 	}
-  	else if(set%31==0)
+  else if(set%31==0)//If set part of every 31st set in the 1024 set counter, i.e. part of BRRIP sets
 	{
 		if(cp->throttle1==31)
 		{
-
-			repl->RRPV=RRPV_counter-2;
-
-			cp->throttle1=0;
+			repl->RRPV=RRPV_counter-2; //insert block with long re-reference infrequently when throttle reaches 32 bit high
+			cp->throttle1=0; //insert block with distant re-reference otherwise
 		}
-		else
-		{
-
-			repl->RRPV=RRPV_counter-1;
-
-			cp->throttle1++;
-		}
+	  else
+	  {
+		  repl->RRPV=RRPV_counter-1;
+		  cp->throttle1++;
+	  }
 		if(cp->PSEL>0)
 			cp->PSEL--;
-
-		break;
+  	break;
 	}
-  	else
+  else 
 	{
-
-		if(cp->PSEL<511)
+		if(cp->PSEL<511)//Part of LRU set
 		{
-
 			repl->RRPV=RRPV_counter-2;
-
 			break;
-		
 		}
-		else
+		else //part of BRRIP set
 		{
 			if(cp->throttle2==31)
 			{
-
-				repl->RRPV=RRPV_counter-2;
-
+				repl->RRPV=RRPV_counter-2; //insert block with long re-reference infrequently when throttle reaches 32 bit high
 				cp->throttle2=0;
 			}
-			else
+			else //insert block with distant re-reference otherwise
 			{
-
 				repl->RRPV=RRPV_counter-1;
-
 				cp->throttle2++;
 			}
-
 			break;
 		}
-	}		//End of DRRIP
-  
+	}		
+	//End DRRIP case
   case Random:
     {
       int bindex = myrand() & (cp->assoc - 1);
